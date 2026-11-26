@@ -1,0 +1,946 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LEDA | Digital Asset Register & Gate Control System</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        ledaBlack: '#0A0A0A',
+                        ledaDark: '#141414',
+                        ledaGreen: '#006837',
+                        ledaGreenHover: '#00502A',
+                        ledaGold: '#FDB913',
+                        ledaGoldHover: '#E5A50A',
+                    },
+                    animation: {
+                        'fade-in-up': 'fadeInUp 0.45s ease-out forwards',
+                        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                    },
+                    keyframes: {
+                        fadeInUp: {
+                            '0%': { opacity: '0', transform: 'translateY(14px)' },
+                            '100%': { opacity: '1', transform: 'translateY(0)' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background-color: #F8FAFC;
+            color: #0A0A0A;
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+        }
+        .leda-card {
+            transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+        }
+        .leda-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 14px 28px -8px rgba(0, 104, 55, 0.18);
+            border-color: #FDB913;
+        }
+        .btn-leda-green {
+            background-color: #006837;
+            color: #FFFFFF;
+            transition: all 0.25s ease;
+        }
+        .btn-leda-green:hover {
+            background-color: #00502A;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(0, 104, 55, 0.35);
+        }
+        .btn-leda-gold {
+            background-color: #FDB913;
+            color: #0A0A0A;
+            transition: all 0.25s ease;
+        }
+        .btn-leda-gold:hover {
+            background-color: #E5A50A;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(253, 185, 19, 0.4);
+        }
+        .nav-pill {
+            transition: all 0.2s ease;
+        }
+        .nav-pill:hover {
+            background-color: rgba(253, 185, 19, 0.15);
+            color: #FDB913;
+        }
+        .nav-pill.active {
+            background-color: #FDB913;
+            color: #0A0A0A;
+            font-weight: 700;
+        }
+        @keyframes scanLine {
+            0%, 100% { top: 8%; }
+            50% { top: 88%; }
+        }
+        .scanner-laser {
+            position: absolute;
+            left: 5%;
+            right: 5%;
+            height: 3px;
+            background: #FDB913;
+            box-shadow: 0 0 12px #FDB913;
+            animation: scanLine 2.2s infinite ease-in-out;
+        }
+        @media print {
+            header, footer, nav, #toast, .no-print { display: none !important; }
+            body { background: #FFFFFF !important; }
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+    <!-- Top Corporate Header -->
+    <header class="bg-ledaBlack text-white border-b-4 border-ledaGold sticky top-0 z-40 shadow-lg">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex flex-wrap items-center justify-between gap-4">
+            <div class="flex items-center space-x-3">
+                <div class="w-11 h-11 rounded-lg bg-ledaGreen border-2 border-ledaGold flex items-center justify-center shadow-md">
+                    <i class="fa-solid fa-shield-halved text-ledaGold text-xl"></i>
+                </div>
+                <div>
+                    <div class="flex items-center gap-2">
+                        <span class="font-extrabold tracking-wider text-xl text-white">LEDA</span>
+                        <span class="text-xs font-bold uppercase px-2 py-0.5 rounded bg-ledaGold text-ledaBlack">Asset Guard</span>
+                    </div>
+                    <p class="text-xs text-gray-300">Limpopo Economic Development Agency • Digital Asset Register</p>
+                </div>
+            </div>
+
+            <!-- Navigation Tabs -->
+            <nav class="flex flex-wrap items-center gap-1.5 bg-ledaDark p-1.5 rounded-xl border border-gray-800">
+                <button onclick="switchTab('register')" id="tab-register" class="nav-pill active px-3.5 py-2 rounded-lg text-sm flex items-center gap-2">
+                    <i class="fa-solid fa-mobile-screen-button"></i>
+                    <span>Register Asset</span>
+                </button>
+                <button onclick="switchTab('verify')" id="tab-verify" class="nav-pill text-white px-3.5 py-2 rounded-lg text-sm flex items-center gap-2">
+                    <i class="fa-solid fa-qrcode"></i>
+                    <span>Gate Verify & Scan</span>
+                </button>
+                <button onclick="switchTab('dashboard')" id="tab-dashboard" class="nav-pill text-white px-3.5 py-2 rounded-lg text-sm flex items-center gap-2">
+                    <i class="fa-solid fa-chart-line"></i>
+                    <span>Live Register</span>
+                </button>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Toast Notification Banner -->
+    <div id="toast" class="fixed bottom-5 right-5 z-50 hidden max-w-md bg-ledaBlack text-white border-l-4 border-ledaGold px-5 py-4 rounded-xl shadow-2xl transition-all duration-300">
+        <div class="flex items-start gap-3">
+            <i id="toast-icon" class="fa-solid fa-circle-check text-ledaGold text-lg mt-0.5"></i>
+            <div>
+                <h4 id="toast-title" class="font-bold text-sm text-ledaGold">Notification</h4>
+                <p id="toast-msg" class="text-xs text-gray-200 mt-0.5"></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content Container -->
+    <main class="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+
+        <!-- KPI Summary Strip -->
+        <section class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6 animate-fade-in-up no-print">
+            <div class="leda-card bg-white rounded-xl p-4 border-2 border-gray-200 shadow-sm">
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-bold uppercase text-gray-500">Registered Assets</span>
+                    <span class="w-8 h-8 rounded-lg bg-ledaGreen/10 text-ledaGreen flex items-center justify-center"><i class="fa-solid fa-laptop"></i></span>
+                </div>
+                <p id="stat-total" class="text-2xl sm:text-3xl font-extrabold text-ledaBlack mt-2">0</p>
+                <p class="text-xs text-ledaGreen font-medium mt-1">Total in register</p>
+            </div>
+
+            <div class="leda-card bg-ledaGreen text-white rounded-xl p-4 border-2 border-ledaGreen shadow-sm">
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-bold uppercase text-ledaGold">Inside Building</span>
+                    <span class="w-8 h-8 rounded-lg bg-white/15 text-ledaGold flex items-center justify-center"><i class="fa-solid fa-building-shield"></i></span>
+                </div>
+                <p id="stat-inside" class="text-2xl sm:text-3xl font-extrabold text-white mt-2">0</p>
+                <p class="text-xs text-gray-100 mt-1">Currently on-site</p>
+            </div>
+
+            <div class="leda-card bg-white rounded-xl p-4 border-2 border-gray-200 shadow-sm">
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-bold uppercase text-gray-500">Gate Scans Today</span>
+                    <span class="w-8 h-8 rounded-lg bg-ledaGold/20 text-ledaBlack flex items-center justify-center"><i class="fa-solid fa-right-left"></i></span>
+                </div>
+                <p id="stat-today" class="text-2xl sm:text-3xl font-extrabold text-ledaBlack mt-2">0</p>
+                <p class="text-xs text-gray-600 font-medium mt-1">Check-ins & Check-outs</p>
+            </div>
+
+            <div class="leda-card bg-ledaBlack text-white rounded-xl p-4 border-2 border-ledaGold shadow-sm">
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-bold uppercase text-ledaGold">Security Alerts</span>
+                    <span class="w-8 h-8 rounded-lg bg-ledaGold text-ledaBlack flex items-center justify-center"><i class="fa-solid fa-triangle-exclamation"></i></span>
+                </div>
+                <p id="stat-flagged" class="text-2xl sm:text-3xl font-extrabold text-ledaGold mt-2">0</p>
+                <p class="text-xs text-gray-300 mt-1">Flagged / Restricted</p>
+            </div>
+        </section>
+
+        <!-- VIEW 1: SMARTPHONE ASSET REGISTRATION & QR PASS GENERATOR -->
+        <section id="view-register" class="grid grid-cols-1 lg:grid-cols-12 gap-6 animate-fade-in-up">
+            <div class="lg:col-span-7 bg-white rounded-2xl border-2 border-gray-200 shadow-md overflow-hidden no-print">
+                <div class="bg-ledaGreen px-6 py-4 border-b-4 border-ledaGold flex items-center justify-between">
+                    <div>
+                        <h2 class="text-lg font-bold text-white flex items-center gap-2">
+                            <i class="fa-solid fa-mobile-screen text-ledaGold"></i> Self-Service Mobile Asset Registration
+                        </h2>
+                        <p class="text-xs text-gray-100">Capture asset details on your smartphone to generate an instant LEDA QR Gate Pass</p>
+                    </div>
+                </div>
+
+                <form id="registerForm" class="p-6 space-y-4">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-bold uppercase text-ledaBlack mb-1">Full Name *</label>
+                            <input type="text" name="owner_name" required placeholder="e.g. M. K. Magate"
+                                class="w-full px-3.5 py-2.5 rounded-lg border border-gray-300 focus:border-ledaGreen focus:ring-2 focus:ring-ledaGreen/20 outline-none text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold uppercase text-ledaBlack mb-1">Employee No / SA ID / Passport *</label>
+                            <input type="text" name="id_or_emp_no" required placeholder="e.g. LEDA-EMP-305 or ID Number"
+                                class="w-full px-3.5 py-2.5 rounded-lg border border-gray-300 focus:border-ledaGreen focus:ring-2 focus:ring-ledaGreen/20 outline-none text-sm">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-bold uppercase text-ledaBlack mb-1">Mobile Number *</label>
+                            <input type="tel" name="phone_number" required placeholder="e.g. 072 000 0000"
+                                class="w-full px-3.5 py-2.5 rounded-lg border border-gray-300 focus:border-ledaGreen focus:ring-2 focus:ring-ledaGreen/20 outline-none text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold uppercase text-ledaBlack mb-1">Department / Visiting Company *</label>
+                            <input type="text" name="department_or_company" required placeholder="e.g. ICT Division / Visitor"
+                                class="w-full px-3.5 py-2.5 rounded-lg border border-gray-300 focus:border-ledaGreen focus:ring-2 focus:ring-ledaGreen/20 outline-none text-sm">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-bold uppercase text-ledaBlack mb-1">Asset Ownership *</label>
+                            <select name="ownership_type" class="w-full px-3.5 py-2.5 rounded-lg border border-gray-300 focus:border-ledaGreen outline-none text-sm bg-white">
+                                <option value="Personal / Visitor">Personal / Visitor Asset</option>
+                                <option value="LEDA Corporate">LEDA Corporate Asset</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold uppercase text-ledaBlack mb-1">Asset Category *</label>
+                            <select name="asset_category" class="w-full px-3.5 py-2.5 rounded-lg border border-gray-300 focus:border-ledaGreen outline-none text-sm bg-white">
+                                <option value="Laptop">Laptop / Notebook</option>
+                                <option value="Tablet / iPad">Tablet / iPad</option>
+                                <option value="Camera / Media">Camera / Media Gear</option>
+                                <option value="ICT Hardware / Router">ICT Hardware / Testing Kit</option>
+                                <option value="Projector / Display">Projector / Presentation Unit</option>
+                                <option value="Other Equipment">Other Technical Equipment</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-bold uppercase text-ledaBlack mb-1">Brand & Model *</label>
+                            <input type="text" name="asset_brand_model" required placeholder="e.g. HP ProBook 450 G10"
+                                class="w-full px-3.5 py-2.5 rounded-lg border border-gray-300 focus:border-ledaGreen focus:ring-2 focus:ring-ledaGreen/20 outline-none text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold uppercase text-ledaBlack mb-1">Unique Serial Number *</label>
+                            <input type="text" name="serial_number" required placeholder="e.g. 5CD3129XYZ"
+                                class="w-full px-3.5 py-2.5 rounded-lg border border-gray-300 focus:border-ledaGreen focus:ring-2 focus:ring-ledaGreen/20 outline-none text-sm uppercase">
+                        </div>
+                    </div>
+
+                    <div class="bg-gray-50 p-3.5 rounded-xl border border-gray-200 flex flex-wrap items-center justify-between gap-3">
+                        <label class="flex items-center gap-2.5 cursor-pointer">
+                            <input type="checkbox" name="auto_checkin" checked class="w-4 h-4 accent-ledaGreen">
+                            <span class="text-xs font-semibold text-ledaBlack">Log immediate <strong>CHECK-IN (Entering Building)</strong></span>
+                        </label>
+                        <select name="gate_point" class="text-xs border border-gray-300 rounded-lg px-2.5 py-1.5 bg-white font-medium">
+                            <option value="Main Reception Gate">Main Reception Gate</option>
+                            <option value="VIP / Executive Entrance">VIP / Executive Entrance</option>
+                            <option value="Parking Basement Access">Parking Basement Access</option>
+                        </select>
+                    </div>
+
+                    <button type="submit" class="w-full btn-leda-green py-3.5 rounded-xl font-bold text-sm tracking-wide flex items-center justify-center gap-2 shadow-md">
+                        <i class="fa-solid fa-qrcode text-ledaGold"></i>
+                        <span>REGISTER ASSET & GENERATE DIGITAL QR PASS</span>
+                    </button>
+                </form>
+            </div>
+
+            <!-- Live Digital QR Pass Preview Card -->
+            <div class="lg:col-span-5 flex flex-col justify-between bg-ledaBlack text-white rounded-2xl border-2 border-ledaGold p-6 shadow-xl relative overflow-hidden">
+                <div class="absolute -right-10 -top-10 w-36 h-36 rounded-full bg-ledaGreen/25 blur-xl"></div>
+                <div>
+                    <div class="flex items-center justify-between border-b border-gray-800 pb-4">
+                        <div>
+                            <span class="text-xs font-bold uppercase tracking-widest text-ledaGold">Official Digital Gate Pass</span>
+                            <h3 class="text-lg font-extrabold text-white">LEDA Smart Security</h3>
+                        </div>
+                        <span class="px-2.5 py-1 rounded-full text-xs font-bold bg-ledaGreen text-white border border-ledaGold">ACTIVE</span>
+                    </div>
+
+                    <div class="my-6 flex flex-col items-center justify-center">
+                        <div class="bg-white p-4 rounded-2xl border-4 border-ledaGold shadow-lg">
+                            <div id="qrcode-box" class="w-44 h-44 flex items-center justify-center"></div>
+                        </div>
+                        <p id="pass-token" class="mt-3 font-mono text-base font-extrabold tracking-widest text-ledaGold">LEDA-8F92A1B4</p>
+                        <p class="text-xs text-gray-400">Present this QR code at LEDA Security Reception</p>
+                    </div>
+
+                    <div class="bg-ledaDark rounded-xl p-4 border border-gray-800 space-y-2 text-xs">
+                        <div class="flex justify-between">
+                            <span class="text-gray-400">Asset Owner:</span>
+                            <span id="pass-owner" class="font-bold text-white">Thabo Mokoena (LEDA-EMP-104)</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-400">Equipment:</span>
+                            <span id="pass-device" class="font-bold text-white">Dell Latitude 5440 [Laptop]</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-400">Serial Number:</span>
+                            <span id="pass-serial" class="font-mono font-bold text-ledaGold">SN-DL5440-9981</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-400">Building Status:</span>
+                            <span id="pass-location" class="font-bold text-green-400">Inside Building</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-5 pt-4 border-t border-gray-800 flex gap-3 no-print">
+                    <button onclick="window.print()" class="flex-1 btn-leda-gold py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-print"></i> Print / Save Pass
+                    </button>
+                    <button onclick="quickVerifyCurrentPass()" class="flex-1 bg-ledaGreen hover:bg-ledaGreenHover text-white py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition">
+                        <i class="fa-solid fa-shield-check"></i> Test Gate Scan
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- VIEW 2: SECURITY GATE VERIFICATION & ENTRY/EXIT SCANNER -->
+        <section id="view-verify" class="hidden grid-cols-1 lg:grid-cols-12 gap-6 animate-fade-in-up">
+            <div class="lg:col-span-5 bg-ledaBlack text-white rounded-2xl border-2 border-ledaGold p-6 shadow-xl">
+                <h2 class="text-lg font-extrabold text-ledaGold flex items-center gap-2">
+                    <i class="fa-solid fa-expand"></i> Security Gate Verification Terminal
+                </h2>
+                <p class="text-xs text-gray-300 mt-1">Scan QR Token or enter Asset Serial Number to verify ownership and log entry/exit.</p>
+
+                <!-- Simulated Optical QR Frame -->
+                <div class="mt-5 relative h-44 rounded-xl bg-ledaDark border-2 border-dashed border-ledaGold/70 flex flex-col items-center justify-center overflow-hidden">
+                    <div class="scanner-laser"></div>
+                    <i class="fa-solid fa-qrcode text-5xl text-ledaGold/80 mb-2"></i>
+                    <span class="text-xs font-semibold text-gray-300">Ready for Handheld Scanner or Manual Lookup</span>
+                </div>
+
+                <div class="mt-5 space-y-3">
+                    <label class="block text-xs font-bold uppercase text-ledaGold">QR Token or Serial Number</label>
+                    <div class="flex gap-2">
+                        <input type="text" id="verifyInput" placeholder="e.g. LEDA-8F92A1B4 or SN-DL5440-9981"
+                            class="flex-1 px-3.5 py-3 rounded-xl bg-white text-ledaBlack font-mono text-sm font-bold outline-none border-2 border-transparent focus:border-ledaGold uppercase">
+                        <button onclick="verifyAsset()" class="btn-leda-gold px-5 py-3 rounded-xl font-extrabold text-sm">
+                            VERIFY
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Quick Demo Lookups -->
+                <div class="mt-5 pt-4 border-t border-gray-800">
+                    <p class="text-xs text-gray-400 mb-2">Quick Demo Lookups:</p>
+                    <div class="flex flex-wrap gap-2">
+                        <button onclick="quickLookup('LEDA-8F92A1B4')" class="text-xs px-2.5 py-1 rounded bg-ledaDark hover:bg-ledaGreen border border-gray-700 text-ledaGold transition">LEDA-8F92A1B4 (Verified)</button>
+                        <button onclick="quickLookup('LEDA-9B04F6A1')" class="text-xs px-2.5 py-1 rounded bg-ledaDark hover:bg-red-900 border border-gray-700 text-red-400 transition">LEDA-9B04F6A1 (Flagged)</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Verification Result & Gate Action Panel -->
+            <div class="lg:col-span-7 bg-white rounded-2xl border-2 border-gray-200 p-6 shadow-md">
+                <div id="verifyPlaceholder" class="h-full flex flex-col items-center justify-center text-center py-12">
+                    <div class="w-16 h-16 rounded-full bg-ledaGreen/10 text-ledaGreen flex items-center justify-center text-2xl mb-3">
+                        <i class="fa-solid fa-magnifying-glass"></i>
+                    </div>
+                    <h3 class="font-bold text-ledaBlack text-base">Awaiting Asset Scan</h3>
+                    <p class="text-xs text-gray-500 max-w-sm mt-1">Enter a QR token or serial number on the left to inspect asset credentials, security clearance, and record building entry or exit.</p>
+                </div>
+
+                <div id="verifyResult" class="hidden space-y-5">
+                    <div id="verifyBanner" class="p-4 rounded-xl border-2 flex items-center justify-between">
+                        <div class="flex items-center gap-3">
+                            <i id="verifyStatusIcon" class="fa-solid fa-circle-check text-2xl"></i>
+                            <div>
+                                <h3 id="verifyStatusTitle" class="font-extrabold text-sm uppercase">VERIFIED ASSET</h3>
+                                <p id="verifyStatusSub" class="text-xs opacity-90">Authorized for LEDA premises movement</p>
+                            </div>
+                        </div>
+                        <span id="verifyLocationBadge" class="px-3 py-1 rounded-full text-xs font-extrabold uppercase"></span>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-gray-50 p-4 rounded-xl border border-gray-200 text-xs">
+                        <div><span class="text-gray-500 block">Owner Name</span><strong id="v-owner" class="text-sm text-ledaBlack"></strong></div>
+                        <div><span class="text-gray-500 block">ID / Employee Number</span><strong id="v-emp" class="text-sm text-ledaBlack"></strong></div>
+                        <div><span class="text-gray-500 block">Asset Description</span><strong id="v-device" class="text-sm text-ledaBlack"></strong></div>
+                        <div><span class="text-gray-500 block">Serial Number / Token</span><strong id="v-serial" class="text-sm font-mono text-ledaGreen"></strong></div>
+                        <div><span class="text-gray-500 block">Department / Organization</span><strong id="v-dept" class="text-ledaBlack"></strong></div>
+                        <div><span class="text-gray-500 block">Ownership Classification</span><strong id="v-type" class="text-ledaBlack"></strong></div>
+                    </div>
+
+                    <!-- Gate Movement Action Controls -->
+                    <div class="bg-ledaBlack text-white p-4 rounded-xl border border-ledaGold space-y-3">
+                        <h4 class="text-xs font-bold uppercase text-ledaGold">Record Gate Movement</h4>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <input type="text" id="officerName" value="Officer M. Baloyi" placeholder="Verifying Officer Name"
+                                class="px-3 py-2 rounded-lg bg-ledaDark border border-gray-700 text-xs text-white outline-none focus:border-ledaGold">
+                            <select id="gateSelect" class="px-3 py-2 rounded-lg bg-ledaDark border border-gray-700 text-xs text-white outline-none focus:border-ledaGold">
+                                <option value="Main Reception Gate">Main Reception Gate</option>
+                                <option value="VIP / Executive Entrance">VIP / Executive Entrance</option>
+                                <option value="West Wing Exit">West Wing Exit</option>
+                            </select>
+                        </div>
+                        <div class="grid grid-cols-2 gap-3 pt-1">
+                            <button onclick="recordMovement('IN')" class="btn-leda-green py-3 rounded-xl font-extrabold text-xs flex items-center justify-center gap-2">
+                                <i class="fa-solid fa-arrow-right-to-bracket text-ledaGold"></i> LOG ENTRY (CHECK-IN)
+                            </button>
+                            <button onclick="recordMovement('OUT')" class="btn-leda-gold py-3 rounded-xl font-extrabold text-xs flex items-center justify-center gap-2">
+                                <i class="fa-solid fa-arrow-right-from-bracket"></i> LOG EXIT (CHECK-OUT)
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- VIEW 3: LIVE ASSET REGISTER, AUDIT LOGS & REPORTING -->
+        <section id="view-dashboard" class="hidden space-y-6 animate-fade-in-up">
+            <!-- Registered Assets Table -->
+            <div class="bg-white rounded-2xl border-2 border-gray-200 shadow-md overflow-hidden">
+                <div class="bg-ledaBlack px-6 py-4 border-b-4 border-ledaGold flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                        <h2 class="text-base font-bold text-white">Master Digital Asset Inventory</h2>
+                        <p class="text-xs text-gray-300">Real-time tracking of corporate and visitor equipment</p>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <input type="text" id="searchRegister" onkeyup="filterAssetsTable()" placeholder="Search owner, serial, token..."
+                            class="px-3 py-2 rounded-lg text-xs bg-ledaDark text-white border border-gray-700 focus:border-ledaGold outline-none">
+                        <button onclick="exportCSV()" class="btn-leda-gold px-3.5 py-2 rounded-lg text-xs font-extrabold flex items-center gap-1.5">
+                            <i class="fa-solid fa-file-csv"></i> Export Audit CSV
+                        </button>
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-gray-100 text-ledaBlack text-xs uppercase border-b border-gray-200">
+                                <th class="py-3 px-4">QR Token</th>
+                                <th class="py-3 px-4">Owner & ID</th>
+                                <th class="py-3 px-4">Asset & Serial</th>
+                                <th class="py-3 px-4">Type</th>
+                                <th class="py-3 px-4">Location</th>
+                                <th class="py-3 px-4">Security</th>
+                                <th class="py-3 px-4 text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="assetsTableBody" class="divide-y divide-gray-200 text-xs"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Gate Movement Audit Trail -->
+            <div class="bg-white rounded-2xl border-2 border-gray-200 shadow-md overflow-hidden">
+                <div class="bg-ledaGreen px-6 py-3.5 border-b-4 border-ledaGold">
+                    <h3 class="text-sm font-bold text-white uppercase tracking-wider">Recent Gate Entry & Exit Audit Trail</h3>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-gray-50 text-gray-700 text-xs uppercase border-b">
+                                <th class="py-2.5 px-4">Timestamp</th>
+                                <th class="py-2.5 px-4">Direction</th>
+                                <th class="py-2.5 px-4">Asset & Serial</th>
+                                <th class="py-2.5 px-4">Owner</th>
+                                <th class="py-2.5 px-4">Gate / Officer</th>
+                            </tr>
+                        </thead>
+                        <tbody id="logsTableBody" class="divide-y divide-gray-100 text-xs"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Corporate Footer -->
+    <footer class="bg-ledaBlack text-gray-400 border-t-2 border-ledaGreen py-4 mt-10 no-print">
+        <div class="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between text-xs gap-2">
+            <p>© 2026 <span class="text-white font-bold">Limpopo Economic Development Agency (LEDA)</span>. All Rights Reserved.</p>
+            <p class="text-ledaGold font-semibold">Digital Asset Security & Paperless Gate Management</p>
+        </div>
+    </footer>
+
+    <script>
+        const STORAGE_KEY_ASSETS = 'leda_digital_assets_v1';
+        const STORAGE_KEY_LOGS = 'leda_movement_logs_v1';
+
+        const defaultAssets = [
+            {
+                id: 1,
+                qr_token: 'LEDA-8F92A1B4',
+                owner_name: 'Thabo Mokoena',
+                id_or_emp_no: 'LEDA-EMP-104',
+                phone_number: '072 451 8890',
+                department_or_company: 'ICT & Digital Infrastructure',
+                ownership_type: 'LEDA Corporate',
+                asset_category: 'Laptop',
+                asset_brand_model: 'Dell Latitude 5440',
+                serial_number: 'SN-DL5440-9981',
+                security_status: 'Verified',
+                current_location: 'Inside Building',
+                created_at: '2026-11-26 08:15:00'
+            },
+            {
+                id: 2,
+                qr_token: 'LEDA-3C71E9D2',
+                owner_name: 'Lerato Ndlovu',
+                id_or_emp_no: '9405120842081',
+                phone_number: '083 912 4401',
+                department_or_company: 'External Auditor - KPMG',
+                ownership_type: 'Personal / Visitor',
+                asset_category: 'Laptop',
+                asset_brand_model: 'HP EliteBook 840 G9',
+                serial_number: 'SN-HP840-4412',
+                security_status: 'Verified',
+                current_location: 'Inside Building',
+                created_at: '2026-11-26 09:40:00'
+            },
+            {
+                id: 3,
+                qr_token: 'LEDA-9B04F6A1',
+                owner_name: 'Kabelo Sithole',
+                id_or_emp_no: 'LEDA-EMP-219',
+                phone_number: '061 330 7721',
+                department_or_company: 'Enterprise Development',
+                ownership_type: 'LEDA Corporate',
+                asset_category: 'Camera / Media',
+                asset_brand_model: 'Canon EOS R6',
+                serial_number: 'SN-CN-R6-7730',
+                security_status: 'Flagged',
+                current_location: 'Outside Building',
+                created_at: '2026-11-25 14:20:00'
+            }
+        ];
+
+        const defaultLogs = [
+            {
+                id: 1,
+                asset_id: 1,
+                direction: 'IN',
+                gate_point: 'Main Reception Gate',
+                officer_name: 'Officer M. Baloyi',
+                remarks: 'Morning sign-in verified',
+                logged_at: new Date().toISOString().slice(0, 10) + ' 08:16:10',
+                qr_token: 'LEDA-8F92A1B4',
+                owner_name: 'Thabo Mokoena',
+                id_or_emp_no: 'LEDA-EMP-104',
+                ownership_type: 'LEDA Corporate',
+                asset_category: 'Laptop',
+                asset_brand_model: 'Dell Latitude 5440',
+                serial_number: 'SN-DL5440-9981'
+            },
+            {
+                id: 2,
+                asset_id: 2,
+                direction: 'IN',
+                gate_point: 'Main Reception Gate',
+                officer_name: 'Officer M. Baloyi',
+                remarks: 'Visitor laptop tagged',
+                logged_at: new Date().toISOString().slice(0, 10) + ' 09:42:05',
+                qr_token: 'LEDA-3C71E9D2',
+                owner_name: 'Lerato Ndlovu',
+                id_or_emp_no: '9405120842081',
+                ownership_type: 'Personal / Visitor',
+                asset_category: 'Laptop',
+                asset_brand_model: 'HP EliteBook 840 G9',
+                serial_number: 'SN-HP840-4412'
+            }
+        ];
+
+        function loadState() {
+            if (!localStorage.getItem(STORAGE_KEY_ASSETS)) {
+                localStorage.setItem(STORAGE_KEY_ASSETS, JSON.stringify(defaultAssets));
+            }
+            if (!localStorage.getItem(STORAGE_KEY_LOGS)) {
+                localStorage.setItem(STORAGE_KEY_LOGS, JSON.stringify(defaultLogs));
+            }
+            return {
+                assets: JSON.parse(localStorage.getItem(STORAGE_KEY_ASSETS)),
+                logs: JSON.parse(localStorage.getItem(STORAGE_KEY_LOGS))
+            };
+        }
+
+        function saveState(assets, logs) {
+            localStorage.setItem(STORAGE_KEY_ASSETS, JSON.stringify(assets));
+            localStorage.setItem(STORAGE_KEY_LOGS, JSON.stringify(logs));
+        }
+
+        let state = loadState();
+        let verifiedAsset = null;
+        let currentPassToken = state.assets[0]?.qr_token || 'LEDA-8F92A1B4';
+
+        function formatNow() {
+            const d = new Date();
+            const pad = n => String(n).padStart(2, '0');
+            return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            renderQRCode(currentPassToken);
+            refreshUI();
+        });
+
+        function renderQRCode(text) {
+            const box = document.getElementById('qrcode-box');
+            box.innerHTML = '';
+            new QRCode(box, {
+                text: text,
+                width: 168,
+                height: 168,
+                colorDark: '#0A0A0A',
+                colorLight: '#FFFFFF',
+                correctLevel: QRCode.CorrectLevel.H
+            });
+        }
+
+        function showToast(title, msg, isError = false) {
+            const toast = document.getElementById('toast');
+            const icon = document.getElementById('toast-icon');
+            document.getElementById('toast-title').textContent = title;
+            document.getElementById('toast-msg').textContent = msg;
+            toast.classList.remove('hidden', 'border-ledaGold', 'border-red-500');
+            toast.classList.add(isError ? 'border-red-500' : 'border-ledaGold');
+            icon.className = isError
+                ? 'fa-solid fa-circle-exclamation text-red-400 text-lg mt-0.5'
+                : 'fa-solid fa-circle-check text-ledaGold text-lg mt-0.5';
+            setTimeout(() => toast.classList.add('hidden'), 4500);
+        }
+
+        function switchTab(tab) {
+            ['register', 'verify', 'dashboard'].forEach(t => {
+                document.getElementById(`view-${t}`).classList.add('hidden');
+                document.getElementById(`view-${t}`).classList.remove('grid');
+                document.getElementById(`tab-${t}`).classList.remove('active');
+                document.getElementById(`tab-${t}`).classList.add('text-white');
+            });
+            const activeView = document.getElementById(`view-${tab}`);
+            activeView.classList.remove('hidden');
+            if (tab !== 'dashboard') activeView.classList.add('grid');
+
+            const activeBtn = document.getElementById(`tab-${tab}`);
+            activeBtn.classList.add('active');
+            activeBtn.classList.remove('text-white');
+
+            if (tab === 'dashboard') refreshUI();
+        }
+
+        function refreshUI() {
+            state = loadState();
+            const todayStr = new Date().toISOString().slice(0, 10);
+            const todayCount = state.logs.filter(l => l.logged_at.startsWith(todayStr)).length;
+            const insideCount = state.assets.filter(a => a.current_location === 'Inside Building').length;
+            const flaggedCount = state.assets.filter(a => a.security_status === 'Flagged').length;
+
+            document.getElementById('stat-total').textContent = state.assets.length;
+            document.getElementById('stat-inside').textContent = insideCount;
+            document.getElementById('stat-today').textContent = todayCount;
+            document.getElementById('stat-flagged').textContent = flaggedCount;
+
+            renderAssetsTable(state.assets);
+            renderLogsTable(state.logs.slice(0, 50));
+        }
+
+        function renderAssetsTable(assets) {
+            const tbody = document.getElementById('assetsTableBody');
+            tbody.innerHTML = assets.map(a => {
+                const isInside = a.current_location === 'Inside Building';
+                const isFlagged = a.security_status === 'Flagged';
+                return `
+                <tr class="hover:bg-ledaGold/10 transition">
+                    <td class="py-3 px-4 font-mono font-bold text-ledaGreen">${a.qr_token}</td>
+                    <td class="py-3 px-4">
+                        <div class="font-bold text-ledaBlack">${a.owner_name}</div>
+                        <div class="text-gray-500">${a.id_or_emp_no} • ${a.department_or_company}</div>
+                    </td>
+                    <td class="py-3 px-4">
+                        <div class="font-semibold text-ledaBlack">${a.asset_brand_model} (${a.asset_category})</div>
+                        <div class="font-mono text-gray-600">SN: ${a.serial_number}</div>
+                    </td>
+                    <td class="py-3 px-4">
+                        <span class="px-2 py-0.5 rounded text-[11px] font-bold ${a.ownership_type === 'LEDA Corporate' ? 'bg-ledaBlack text-ledaGold' : 'bg-gray-200 text-ledaBlack'}">
+                            ${a.ownership_type}
+                        </span>
+                    </td>
+                    <td class="py-3 px-4">
+                        <span class="px-2.5 py-1 rounded-full text-[11px] font-bold ${isInside ? 'bg-ledaGreen text-white' : 'bg-gray-200 text-gray-700'}">
+                            ${a.current_location}
+                        </span>
+                    </td>
+                    <td class="py-3 px-4">
+                        <span class="px-2.5 py-1 rounded-full text-[11px] font-bold ${isFlagged ? 'bg-red-600 text-white' : 'bg-ledaGold/30 text-ledaBlack'}">
+                            ${a.security_status}
+                        </span>
+                    </td>
+                    <td class="py-3 px-4 text-right space-x-1">
+                        <button onclick="quickLookup('${a.qr_token}')" class="px-2.5 py-1 rounded bg-ledaGreen text-white hover:bg-ledaGreenHover font-semibold">Scan</button>
+                        <button onclick="toggleFlag(${a.id})" class="px-2.5 py-1 rounded border border-gray-300 hover:bg-ledaBlack hover:text-ledaGold font-semibold transition">
+                            ${isFlagged ? 'Clear Flag' : 'Flag'}
+                        </button>
+                    </td>
+                </tr>`;
+            }).join('');
+        }
+
+        function renderLogsTable(logs) {
+            const tbody = document.getElementById('logsTableBody');
+            tbody.innerHTML = logs.map(l => `
+                <tr class="hover:bg-gray-50">
+                    <td class="py-2.5 px-4 font-mono text-gray-600">${l.logged_at}</td>
+                    <td class="py-2.5 px-4">
+                        <span class="px-2.5 py-0.5 rounded font-extrabold text-[11px] ${l.direction === 'IN' ? 'bg-ledaGreen text-white' : 'bg-ledaGold text-ledaBlack'}">
+                            ${l.direction === 'IN' ? 'CHECK-IN (IN)' : 'CHECK-OUT (OUT)'}
+                        </span>
+                    </td>
+                    <td class="py-2.5 px-4 font-semibold text-ledaBlack">${l.asset_brand_model} <span class="font-mono text-gray-500">(${l.serial_number})</span></td>
+                    <td class="py-2.5 px-4">${l.owner_name}</td>
+                    <td class="py-2.5 px-4 text-gray-600">${l.gate_point} • ${l.officer_name}</td>
+                </tr>
+            `).join('');
+        }
+
+        function filterAssetsTable() {
+            const q = document.getElementById('searchRegister').value.toLowerCase();
+            const filtered = state.assets.filter(a =>
+                a.owner_name.toLowerCase().includes(q) ||
+                a.serial_number.toLowerCase().includes(q) ||
+                a.qr_token.toLowerCase().includes(q) ||
+                a.asset_brand_model.toLowerCase().includes(q)
+            );
+            renderAssetsTable(filtered);
+        }
+
+        document.getElementById('registerForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            const serial_number = (formData.get('serial_number') || '').trim().toUpperCase();
+
+            const existing = state.assets.find(a => a.serial_number.toUpperCase() === serial_number);
+            if (existing) {
+                return showToast('Registration Blocked', `Serial number ${serial_number} is already registered under Token ${existing.qr_token}.`, true);
+            }
+
+            const auto_checkin = formData.has('auto_checkin');
+            const gate_point = formData.get('gate_point') || 'Main Reception Gate';
+            const randomHex = Array.from(crypto.getRandomValues(new Uint8Array(4)), b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
+            const qr_token = `LEDA-${randomHex}`;
+            const newId = state.assets.reduce((max, item) => Math.max(max, item.id), 0) + 1;
+
+            const newAsset = {
+                id: newId,
+                qr_token,
+                owner_name: (formData.get('owner_name') || '').trim(),
+                id_or_emp_no: (formData.get('id_or_emp_no') || '').trim(),
+                phone_number: (formData.get('phone_number') || '').trim(),
+                department_or_company: (formData.get('department_or_company') || '').trim(),
+                ownership_type: formData.get('ownership_type') || 'Personal / Visitor',
+                asset_category: formData.get('asset_category') || 'Laptop',
+                asset_brand_model: (formData.get('asset_brand_model') || '').trim(),
+                serial_number,
+                security_status: 'Verified',
+                current_location: auto_checkin ? 'Inside Building' : 'Outside Building',
+                created_at: formatNow()
+            };
+
+            state.assets.unshift(newAsset);
+
+            if (auto_checkin) {
+                const nextLogId = state.logs.reduce((max, item) => Math.max(max, item.id), 0) + 1;
+                state.logs.unshift({
+                    id: nextLogId,
+                    asset_id: newAsset.id,
+                    direction: 'IN',
+                    gate_point,
+                    officer_name: 'Self / Gate Registration',
+                    remarks: 'Initial entry upon registration',
+                    logged_at: formatNow(),
+                    qr_token: newAsset.qr_token,
+                    owner_name: newAsset.owner_name,
+                    id_or_emp_no: newAsset.id_or_emp_no,
+                    ownership_type: newAsset.ownership_type,
+                    asset_category: newAsset.asset_category,
+                    asset_brand_model: newAsset.asset_brand_model,
+                    serial_number: newAsset.serial_number
+                });
+            }
+
+            saveState(state.assets, state.logs);
+
+            currentPassToken = newAsset.qr_token;
+            renderQRCode(newAsset.qr_token);
+            document.getElementById('pass-token').textContent = newAsset.qr_token;
+            document.getElementById('pass-owner').textContent = `${newAsset.owner_name} (${newAsset.id_or_emp_no})`;
+            document.getElementById('pass-device').textContent = `${newAsset.asset_brand_model} [${newAsset.asset_category}]`;
+            document.getElementById('pass-serial').textContent = newAsset.serial_number;
+            document.getElementById('pass-location').textContent = newAsset.current_location;
+
+            showToast('QR Pass Generated', 'Asset successfully registered and QR Pass generated.');
+            e.target.reset();
+            refreshUI();
+        });
+
+        function quickVerifyCurrentPass() {
+            quickLookup(currentPassToken);
+        }
+
+        function quickLookup(token) {
+            switchTab('verify');
+            document.getElementById('verifyInput').value = token;
+            verifyAsset();
+        }
+
+        function verifyAsset() {
+            state = loadState();
+            const q = document.getElementById('verifyInput').value.trim().toUpperCase();
+            if (!q) return showToast('Input Required', 'Please enter a QR Token or Serial Number.', true);
+
+            const asset = state.assets.find(a => a.qr_token.toUpperCase() === q || a.serial_number.toUpperCase() === q);
+
+            if (!asset) {
+                verifiedAsset = null;
+                document.getElementById('verifyResult').classList.add('hidden');
+                document.getElementById('verifyPlaceholder').classList.remove('hidden');
+                return showToast('Verification Failed', 'No matching asset found in LEDA Register.', true);
+            }
+
+            verifiedAsset = asset;
+            document.getElementById('verifyPlaceholder').classList.add('hidden');
+            document.getElementById('verifyResult').classList.remove('hidden');
+
+            const isFlagged = verifiedAsset.security_status === 'Flagged';
+            const banner = document.getElementById('verifyBanner');
+            banner.className = isFlagged
+                ? 'p-4 rounded-xl border-2 border-red-600 bg-red-50 text-red-900 flex items-center justify-between'
+                : 'p-4 rounded-xl border-2 border-ledaGreen bg-ledaGreen/10 text-ledaBlack flex items-center justify-between';
+
+            document.getElementById('verifyStatusIcon').className = isFlagged
+                ? 'fa-solid fa-triangle-exclamation text-2xl text-red-600'
+                : 'fa-solid fa-circle-check text-2xl text-ledaGreen';
+            document.getElementById('verifyStatusTitle').textContent = isFlagged
+                ? 'SECURITY ALERT: FLAGGED ASSET'
+                : 'VERIFIED LEDA DIGITAL PASS';
+            document.getElementById('verifyStatusSub').textContent = isFlagged
+                ? 'Exit restricted — requires Asset Manager clearance'
+                : 'Ownership & serial number authenticated';
+
+            const locBadge = document.getElementById('verifyLocationBadge');
+            locBadge.textContent = verifiedAsset.current_location;
+            locBadge.className = verifiedAsset.current_location === 'Inside Building'
+                ? 'px-3 py-1 rounded-full text-xs font-extrabold uppercase bg-ledaGreen text-white'
+                : 'px-3 py-1 rounded-full text-xs font-extrabold uppercase bg-ledaBlack text-ledaGold';
+
+            document.getElementById('v-owner').textContent = verifiedAsset.owner_name;
+            document.getElementById('v-emp').textContent = verifiedAsset.id_or_emp_no;
+            document.getElementById('v-device').textContent = `${verifiedAsset.asset_brand_model} (${verifiedAsset.asset_category})`;
+            document.getElementById('v-serial').textContent = `${verifiedAsset.serial_number} • ${verifiedAsset.qr_token}`;
+            document.getElementById('v-dept').textContent = verifiedAsset.department_or_company;
+            document.getElementById('v-type').textContent = verifiedAsset.ownership_type;
+        }
+
+        function recordMovement(direction) {
+            if (!verifiedAsset) return;
+            state = loadState();
+            const target = state.assets.find(a => a.id === verifiedAsset.id);
+            if (!target) return;
+
+            if (target.security_status === 'Flagged' && direction === 'OUT') {
+                return showToast('Security Block', 'SECURITY HOLD: This asset is FLAGGED and cannot exit LEDA premises without Asset Manager clearance.', true);
+            }
+
+            const officer_name = document.getElementById('officerName').value.trim() || 'Security Officer';
+            const gate_point = document.getElementById('gateSelect').value;
+            const new_location = direction === 'IN' ? 'Inside Building' : 'Outside Building';
+
+            target.current_location = new_location;
+
+            const nextLogId = state.logs.reduce((max, item) => Math.max(max, item.id), 0) + 1;
+            state.logs.unshift({
+                id: nextLogId,
+                asset_id: target.id,
+                direction,
+                gate_point,
+                officer_name,
+                remarks: `Gate ${direction} recorded`,
+                logged_at: formatNow(),
+                qr_token: target.qr_token,
+                owner_name: target.owner_name,
+                id_or_emp_no: target.id_or_emp_no,
+                ownership_type: target.ownership_type,
+                asset_category: target.asset_category,
+                asset_brand_model: target.asset_brand_model,
+                serial_number: target.serial_number
+            });
+
+            saveState(state.assets, state.logs);
+            showToast(`Gate ${direction} Recorded`, `Asset ${target.serial_number} logged as ${direction} (${new_location}).`);
+            verifyAsset();
+            refreshUI();
+        }
+
+        function toggleFlag(assetId) {
+            state = loadState();
+            const target = state.assets.find(a => a.id === assetId);
+            if (!target) return;
+
+            target.security_status = target.security_status === 'Verified' ? 'Flagged' : 'Verified';
+            saveState(state.assets, state.logs);
+            showToast('Security Status Updated', `Asset status changed to ${target.security_status}.`, target.security_status === 'Flagged');
+            refreshUI();
+        }
+
+        function exportCSV() {
+            state = loadState();
+            const headers = ['Log ID', 'Timestamp', 'Direction', 'QR Token', 'Owner Name', 'ID / Employee No', 'Ownership', 'Category', 'Brand & Model', 'Serial Number', 'Gate Point', 'Verifying Officer', 'Remarks'];
+            const rows = state.logs.map(l => [
+                l.id, l.logged_at, l.direction, l.qr_token, l.owner_name, l.id_or_emp_no,
+                l.ownership_type, l.asset_category, l.asset_brand_model, l.serial_number,
+                l.gate_point, l.officer_name, l.remarks || ''
+            ]);
+            const csvContent = [headers, ...rows]
+                .map(row => row.map(cell => `"${String(cell ?? '').replace(/"/g, '""')}"`).join(','))
+                .join('\n');
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            const dateStr = new Date().toISOString().slice(0, 10);
+            link.href = url;
+            link.setAttribute('download', `LEDA_Asset_Movement_Report_${dateStr}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+            showToast('CSV Exported', 'LEDA asset movement audit report downloaded.');
+        }
+    </script>
+</body>
+</html>
