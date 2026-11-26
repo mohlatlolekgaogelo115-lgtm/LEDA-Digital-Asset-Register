@@ -104,8 +104,8 @@
     <header class="bg-ledaBlack text-white border-b-4 border-ledaGold sticky top-0 z-40 shadow-lg">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex flex-wrap items-center justify-between gap-4">
             <div class="flex items-center space-x-3">
-                <div class="w-11 h-11 rounded-lg bg-ledaGreen border-2 border-ledaGold flex items-center justify-center shadow-md">
-                    <i class="fa-solid fa-shield-halved text-ledaGold text-xl"></i>
+                <div class="bg-white rounded-lg p-1.5 border-2 border-ledaGold shadow-md flex items-center justify-center">
+                    <img src="leda-logo.jpeg" alt="LEDA - Limpopo Economic Development Agency Logo" class="h-10 w-auto object-contain">
                 </div>
                 <div>
                     <div class="flex items-center gap-2">
@@ -134,9 +134,8 @@
         </div>
     </header>
 
-    <div class="bg-white rounded-lg p-1.5 border-2 border-ledaGold shadow-md flex items-center justify-center">
-                    <img src="leda-logo.jpeg" alt="LEDA - Limpopo Economic Development Agency Logo" class="h-10 w-auto object-contain">
-                </div>
+    <!-- Toast Notification Banner -->
+    <div id="toast" class="fixed bottom-5 right-5 z-50 hidden max-w-md bg-ledaBlack text-white border-l-4 border-ledaGold px-5 py-4 rounded-xl shadow-2xl transition-all duration-300">
         <div class="flex items-start gap-3">
             <i id="toast-icon" class="fa-solid fa-circle-check text-ledaGold text-lg mt-0.5"></i>
             <div>
@@ -394,8 +393,8 @@
                         <div><span class="text-gray-500 block">ID / Employee Number</span><strong id="v-emp" class="text-sm text-ledaBlack"></strong></div>
                         <div><span class="text-gray-500 block">Asset Description</span><strong id="v-device" class="text-sm text-ledaBlack"></strong></div>
                         <div><span class="text-gray-500 block">Serial Number / Token</span><strong id="v-serial" class="text-sm font-mono text-ledaGreen"></strong></div>
-                        <div><span class="text-gray-500 block">Department / Organization</span><strong id="v-dept" class="text-ledaBlack"></strong></div>
-                        <div><span class="text-gray-500 block">Ownership Classification</span><strong id="v-type" class="text-ledaBlack"></strong></div>
+                        <div><span class="text-gray-500 block">Department / Organization</span><strong id="v-dept" class="text-sm text-ledaBlack"></strong></div>
+                        <div><span class="text-gray-500 block">Ownership Classification</span><strong id="v-type" class="text-sm text-ledaBlack"></strong></div>
                     </div>
 
                     <!-- Gate Movement Action Controls -->
